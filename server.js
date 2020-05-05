@@ -4,8 +4,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 const express = require('express')
 const mongoose = require('mongoose')
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
+
+const Auth = require('./models/auth')
 
 const app = express()
 app.use(express.json())
@@ -15,8 +15,15 @@ const db = mongoose.connection
 db.on('error', (error) => console.log("Database error: " + error))
 db.once('open', () => console.log("Database connected!"))
 
-app.get('/', (req, res) => {
-    res.send("Success")
-})
+const loginRouter = require('./routes/login')
+app.use('/', loginRouter)
 
-var server = app.listen(process.env.PORT || 3000, () => console.log('Server started, listening on port ' + server.address().port))
+const tokensRouter = require('./routes/token')
+app.use('/token', tokensRouter.router)
+
+
+app.use(function(req, res, next){
+    res.status(404).json({message: "This is not a valid route!"});
+  })
+
+var server = app.listen(process.env.PORT || 4000, () => console.log('Server started, listening on port ' + server.address().port))
