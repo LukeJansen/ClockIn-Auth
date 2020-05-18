@@ -1,32 +1,33 @@
 const express = require('express')
 const bcrypt = require('bcrypt')
+const crypto = require('crypto')
+
 const router = express.Router()
 
 const Auth = require('../models/auth')
 const User = require('../models/user')
 const Token = require('./token')
 
-router.post('/login', getAuth, getUser, async (req, res) => {
-    if (res.auth.Reset) return res.status(400).json({message: "Password Reset Requested"})
-
+router.post('/login', getUser, getAuth, async (req, res) => {
     try{
         if (await bcrypt.compare(req.body.Password, res.auth.Hash)){
             const refreshToken = Token.refresh(res.user.Type)
             res.auth.RefreshTokens.push(refreshToken)
             await res.auth.save()
 
-            return res.status(200).json({message: "Logged In", RefreshToken: refreshToken})
+            return res.status(200).json({message: "Logged In", RefreshToken: refreshToken, UserID: req.body.UserID, UserType: res.user.Type})
         }
         else{
             return res.status(401).json({message: "Bad Credentials"})
         }
     }
     catch (err){
+        console.log(err)
         return res.status(500).json({message: err.message})
     }
 })
 
-router.delete('/logout', getAuth, async (req, res) => {
+router.post('/logout', getAuth, async (req, res) => {
     if (req.body.RefreshToken == null) return res.status(400).json({message: "Refresh Token Not Provided"})
 
     try{
@@ -36,23 +37,22 @@ router.delete('/logout', getAuth, async (req, res) => {
     } catch (err){
         return res.status(500).json({message: err.message})
     }
-
-    
 })
 
 router.post('/register', async (req, res) => {
     const auth = new Auth()
     auth.UserID = req.body.UserID
+    const password = crypto.randomBytes(5).toString('hex')
     try{
-        auth.Hash = await bcrypt.hash(req.body.Password, 10)
+        auth.Hash = await bcrypt.hash(password, 10)
         await auth.save()
-        return res.status(201).json({message: "User Registered"})
+        return res.status(201).json({message: "User Registered", password: password})
     } catch (err){
         return res.status(500).json({message: err.message})
     }
 })
 
-router.delete('/remove', getAuth, async (req, res) => {
+router.post('/remove', getAuth, async (req, res) => {
     try{
         res.auth.remove()
         return res.status(200).json({message: "Removed User"})
@@ -61,28 +61,34 @@ router.delete('/remove', getAuth, async (req, res) => {
     }
 })
 
-router.post('/requestReset', getAuth, async (req, res) => {
+router.post('/reset', getAuth, async (req,res) => {
     try{
-        if (res.auth.Reset) return res.status(400).json({message: "Reset Already Requested"})
-
-        res.auth.Reset = true
+        let password = crypto.randomBytes(5).toString('hex')
+        res.auth.Hash = await bcrypt.hash(password, 10)
+        res.auth.Reset = false;
         await res.auth.save()
-
-        return res.status(200).json({message: "Reset Requested"})
+        return res.status(201).json({message: "User Password Reset", password: password})
     } catch (err){
         return res.status(500).json({message: err.message})
     }
 })
 
-router.post('/reset', getAuth, async (req,res) => {
-    if (!res.auth.Reset) return res.status(400).json({message: "This User Does Not Have A Reset Requested"})
-
+router.post('/passwordChange', getAuth, async (req, res) => {
+    const currentPass = req.body.CurrentPass
+    const newPass = req.body.NewPass
+    
     try{
-        res.auth.Hash = await bcrypt.hash(req.body.Password, 10)
-        res.auth.Reset = false;
-        await res.auth.save()
-        return res.status(201).json({message: "User Password Reset"})
-    } catch (err){
+        if (await bcrypt.compare(currentPass, res.auth.Hash)){
+            res.auth.Hash = await bcrypt.hash(newPass, 10)
+            await res.auth.save()
+
+            return res.status(200).json({message: "Password Changed"})
+        }
+        else{
+            return res.status(401).json({message: "Bad Credentials"})
+        }
+    }
+    catch (err){
         return res.status(500).json({message: err.message})
     }
 })
@@ -105,15 +111,22 @@ async function getAuth(req, res, next){
 async function getUser(req, res, next){
     let user
     try {
-        user = await User.findById(req.body.UserID)
+        if (req.body.Email != null){
+            user = await User.findOne({Email: req.body.Email})
+        }
+        else{
+            user = await User.findById(req.body.UserID)
+        }
+
         if (user == null){
-            return res.status(404).json({message: "Cannot Find User With Given ID"})
+            return res.status(404).json({message: "Cannot Find User"})
         }
     } catch (err){
         return res.status(500).json({message: err.message})
     }
 
     res.user = user
+    req.body.UserID = user._id
     next()
 }
 

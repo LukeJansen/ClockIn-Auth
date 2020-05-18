@@ -12,11 +12,6 @@ const authSchema = new mongoose.Schema({
     RefreshTokens: {
         type: Array,
         required: false
-    },
-    Reset: {
-        type: Boolean,
-        required: true,
-        default: false
     }
 }, 
 {collection: 'auth'})

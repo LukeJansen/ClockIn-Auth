@@ -5,8 +5,9 @@ const User = require('../models/user')
 
 const router = express.Router()
 
-router.get('/refresh', getAuth, getUser, (req, res) => {
+router.post('/refresh', getAuth, getUser, (req, res) => {
     const refreshToken = req.body.RefreshToken
+
     if (refreshToken == null) return res.status(400).json({message: "Refresh Token Not Provided"})
     if (!res.auth.RefreshTokens.includes(refreshToken)) return res.status(403).json({message: "Refresh Token Not Valid"})
 
@@ -16,12 +17,12 @@ router.get('/refresh', getAuth, getUser, (req, res) => {
     })
 })
 
-router.get('/check', (req, res) => {
+router.post('/check', (req, res) => {
     const accessToken = req.body.AccessToken
     const userType = req.body.UserType
 
     jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-        if (err) return res.status(403).json({message: "Invalid Token"})
+        if (err) return res.status(403).json({message: err.message})
         if (user.UserType >= userType){
             return res.sendStatus(200)
         }
