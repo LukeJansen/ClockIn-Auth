@@ -24,7 +24,7 @@ router.post('/check', (req, res) => {
     jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
         if (err) return res.status(403).json({message: err.message})
         if (user.UserType >= userType){
-            return res.sendStatus(200)
+            return res.status(200).json({message: "Access Granted"})
         }
         else{
             return res.status(403).json({message: "Incorrect Privileges"})
